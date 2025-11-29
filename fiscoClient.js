@@ -1,6 +1,8 @@
 // fiscoClient.js
-const axios = require("axios");
-const contractConfig = require("./contractConfig");
+import axios from "axios";
+import dotenv from "dotenv";
+import { contractConfig } from "./contractConfig.js";
+dotenv.config();
 
 const WEB_BASE_URL = process.env.WEB_BASE_URL; // http://127.0.0.1:5002/WeBASE-Front
 const GROUP_ID = process.env.GROUP_ID; // "1"
@@ -38,6 +40,4 @@ async function callContract(contactName, funcName, funcParam = []) {
   return resp.data;
 }
 
-module.exports = {
-  callContract,
-};
+export { callContract };

@@ -1,0 +1,20 @@
+{
+  "name": "fisco-express-demo",
+  "module": "index.js",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "node index.js"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "axios": "^1.13.2",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0"
+  }
+}
