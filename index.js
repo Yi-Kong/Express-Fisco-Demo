@@ -1,5 +1,5 @@
 // index.js
-import { callContract } from './fiscoClient.js';
+import { callContract ,deployDemoContract} from './fiscoClient.js';
 import express from 'express';
 import bodyParser from 'body-parser';
 
@@ -36,6 +36,20 @@ app.get('/api/hello/get', async (req, res) => {
   } catch (err) {
     console.error('get 失败:', err.response?.data || err.message);
     res.status(500).json({ error: '链上查询失败', detail: err.response?.data || err.message });
+  }
+});
+
+app.post('/api/contracts/deploy-demo', async (req, res) => {
+  try {
+    const result = await deployDemoContract();
+    res.json({ ok: true, result });
+  } catch (err) {
+    console.error('部署 Demo 合约失败:', err.response?.data || err.message);
+    res.status(500).json({
+      ok: false,
+      error: 'deploy demo failed',
+      detail: err.response?.data || err.message,
+    });
   }
 });
 
