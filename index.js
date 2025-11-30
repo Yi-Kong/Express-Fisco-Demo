@@ -52,6 +52,27 @@ app.get('/api/demo/get', async (req, res) => {
   }
 });
 
+
+// 写数据：调用 HelloWorld.set(string)
+app.post('/api/demo/set', async (req, res) => {
+  try {
+    const { value } = req.body;
+    if (typeof value !== 'number') {
+      return res.status(400).json({ error: 'value 必须是数字' });
+    }
+
+    // funcParam 是 String 数组
+    const result = await callContract('Demo','set', [value]);
+
+    // 对于非 constant 函数，返回的是交易收据（blockHash、txHash 等）
+    res.json({ ok: true, result });
+  } catch (err) {
+    console.error('set 失败:', err.response?.data || err.message);
+    res.status(500).json({ error: '链上调用失败', detail: err.response?.data || err.message });
+  }
+});
+
+
 app.post('/api/contracts/deploy-demo', async (req, res) => {
   try {
     const result = await deployDemoContract();

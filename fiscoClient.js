@@ -29,8 +29,6 @@ function loadCompiledDemo() {
 async function importDemoAbiToNodeManager(contractAddress) {
   const { abi } = loadCompiledDemo();
 
-  // const abiId = await getContractIdFromNodeMgr(contractAddress);
-  // console.log("Found contractId (abiId) =", abiId);
   const url = `${NODE_MGR_URL}/abi`;
 
   const payload = {

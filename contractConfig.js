@@ -41,7 +41,7 @@ export const contractConfig = {
   },
   Demo: {
     contractName: "Demo",
-    contractAddress: "0x0662b023d9f87a06cecb053702e9c77510f1056f", // 部署后填写实际地址
+    contractAddress: "0x6849f21d1e455e9f0712b1e99fa4fcd23758e8f1", // 部署后填写实际地址
     contractPath: "/",
     contractAbi: [
   {
