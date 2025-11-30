@@ -1,24 +1,33 @@
-// scripts/compileDemo.js
-import fs from 'fs';
-import path from 'path';
-import solc from 'solc';
+// compileContracts.js
+import fs from "fs";
+import path from "path";
+import solc from "solc";
 
-const contractPath = path.join(process.cwd(), 'contracts', 'Demo.sol');
-console.log(`编译合约: ${contractPath}`);
-const source = fs.readFileSync(contractPath, 'utf8');
+const contractsDir = path.join(process.cwd(), "contracts");
+const buildDir = path.join(process.cwd(), "build_contracts");
 
-// solc 标准输入格式
+if (!fs.existsSync(buildDir)) {
+  fs.mkdirSync(buildDir);
+}
+
+// 读取全部 .sol
+const sources = {};
+const solFiles = fs.readdirSync(contractsDir).filter(f => f.endsWith(".sol"));
+
+for (const file of solFiles) {
+  const full = path.join(contractsDir, file);
+  sources[file] = { content: fs.readFileSync(full, "utf8") };
+}
+
+// solc 输入
 const input = {
-  language: 'Solidity',
-  sources: {
-    'demo.sol': {
-      content: source,
-    },
-  },
+  language: "Solidity",
+  sources,
   settings: {
+    optimizer: { enabled: true, runs: 200 },
     outputSelection: {
-      '*': {
-        '*': ['abi', 'evm.bytecode', 'evm.deployedBytecode'],
+      "*": {
+        "*": ["abi", "evm.bytecode.object", "evm.deployedBytecode.object"],
       },
     },
   },
@@ -27,28 +36,35 @@ const input = {
 const output = JSON.parse(solc.compile(JSON.stringify(input)));
 
 if (output.errors) {
-  for (const err of output.errors) {
-    console.error(err.formattedMessage);
+  for (const e of output.errors) console.log(e.formattedMessage);
+  if (output.errors.some(e => e.severity === "error")) {
+    throw new Error("❌ 编译失败");
   }
 }
 
-// 合约名 Demo
-const contract = output.contracts['demo.sol']['Demo'];
+// ★ 输出每个合约到独立文件夹
+for (const sourceFile of Object.keys(output.contracts)) {
+  const contracts = output.contracts[sourceFile];
 
-if (!contract) {
-  throw new Error('未找到 Demo 合约编译结果');
+  for (const contractName of Object.keys(contracts)) {
+    const c = contracts[contractName];
+
+    const outDir = path.join(buildDir, contractName);
+
+    if (!fs.existsSync(outDir)) {
+      fs.mkdirSync(outDir);
+    }
+
+    const abiPath = path.join(outDir, `${contractName}.abi.json`);
+    const bytecodePath = path.join(outDir, `${contractName}.bytecode.txt`);
+    const runtimePath = path.join(outDir, `${contractName}.runtimeBytecode.txt`);
+
+    fs.writeFileSync(abiPath, JSON.stringify(c.abi, null, 2));
+    fs.writeFileSync(bytecodePath, c.evm.bytecode.object || "");
+    fs.writeFileSync(runtimePath, c.evm.deployedBytecode.object || "");
+
+    console.log(`✅ 输出合约 ${contractName} 到 ${outDir}`);
+  }
 }
 
-const abi = contract.abi;
-const bytecode = contract.evm.bytecode.object;
-const runtimeBytecode = contract.evm.deployedBytecode.object;
-
-// 输出到 build 目录
-const buildDir = path.join(process.cwd(), '.', 'build_contracts');
-if (!fs.existsSync(buildDir)) fs.mkdirSync(buildDir);
-
-fs.writeFileSync(path.join(buildDir, 'Demo.abi.json'), JSON.stringify(abi, null, 2));
-fs.writeFileSync(path.join(buildDir, 'Demo.bytecode.txt'), bytecode);
-fs.writeFileSync(path.join(buildDir, 'Demo.runtimeBytecode.txt'), runtimeBytecode);
-
-console.log('编译完成：build_contracts/Demo.abi.json  和  Demo.bytecode.txt / Demo.runtimeBytecode.txt');
+console.log("🎉 所有合约编译完成！");
