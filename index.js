@@ -1,5 +1,5 @@
 // index.js
-import { callContract ,deployAllContracts} from './fiscoClient.js';
+import { callContract ,deployAllContracts, deploySingleContract} from './fiscoClient.js';
 import express from 'express';
 import bodyParser from 'body-parser';
 
@@ -86,6 +86,34 @@ app.post('/api/contracts/deploy-demo', async (req, res) => {
     });
   }
 });
+
+
+// 部署指定名字的合约
+app.post('/api/contracts/deploy-one', async (req, res) => {
+  try {
+    const { contractName, constructorParams = [] } = req.body;
+
+    if (!contractName || typeof contractName !== 'string') {
+      return res.status(400).json({ ok: false, error: 'contractName 必须是字符串' });
+    }
+
+    // WeBASE 期望所有参数是字符串，这里统一转一下
+    const paramsAsString = constructorParams.map((p) => String(p));
+
+    const result = await deploySingleContract(contractName, paramsAsString);
+
+    // result 里包含 contractName / contractAddress
+    res.json({ ok: true, result });
+  } catch (err) {
+    console.error('部署指定合约失败:', err.response?.data || err.message);
+    res.status(500).json({
+      ok: false,
+      error: 'deploy single contract failed',
+      detail: err.response?.data || err.message,
+    });
+  }
+});
+
 
 const port = process.env.PORT || 3000;
 app.listen(port, () => {

@@ -78,36 +78,6 @@ function loadCompiledContract(contractName) {
 }
 
 /* ------------------------------------------------------------------
- * 工具函数：链上检查合约是否存在
- * 使用 WeBASE-Front web3 "获取合约二进制代码接口"
- * URL: {WEB_BASE_URL}/{groupId}/web3/code/{address}/{blockNumber}
- * blockNumber 这里用 latest，一般是支持的
- * ------------------------------------------------------------------ */
-
-async function isContractDeployedOnChain(address) {
-  if (!address) return false;
-
-  const trimmed = address.trim();
-  if (!trimmed.startsWith("0x")) return false;
-
-  const url = `${WEB_BASE_URL}/${GROUP_ID}/web3/code/${trimmed}/latest`;
-  try {
-    const resp = await axios.get(url);
-
-    // 规范返回：{ code, message, data }
-    if (resp.data && resp.data.code === 0) {
-      const codeHex = resp.data.data; // 合约二进制代码
-      if (codeHex && codeHex !== "0x" && codeHex !== "0x0") {
-        return true;
-      }
-    }
-  } catch (e) {
-    console.error(`[isContractDeployedOnChain] 调用失败，视为未部署:`, e.message);
-  }
-  return false;
-}
-
-/* ------------------------------------------------------------------
  * ABI 导入 Node-Manager
  * ------------------------------------------------------------------ */
 
@@ -176,49 +146,16 @@ function extractAddressFromDeployResp(data) {
  * 单合约部署：如果链上已有则跳过，否则部署
  * ------------------------------------------------------------------ */
 
-async function deployContractIfNeeded(contractName, constructorParams = []) {
+async function deploySingleContract(contractName, constructorParams = []) {
   console.log(`\n=== 处理合约 ${contractName} ===`);
 
   const { abi, bytecode, runtimeBytecode } = loadCompiledContract(contractName);
 
   // 读取当前配置
   const configObj = loadContractConfigObject();
-  const existingCfg = configObj[contractName];
-  const existingAddress = existingCfg?.contractAddress;
 
-  // 1. 如果配置里有地址，先去链上看是否真正存在
-  if (existingAddress) {
-    const exists = await isContractDeployedOnChain(existingAddress);
-    if (exists) {
-      console.log(
-        `[${contractName}] 已在链上部署，地址 ${existingAddress}，跳过重新部署。`
-      );
 
-      // 确保 ABI 也写入 config（避免旧配置没有 contractAbi）
-      configObj[contractName] = {
-        contractName,
-        contractAddress: existingAddress,
-        contractPath: existingCfg.contractPath || "/",
-        contractAbi: existingCfg.contractAbi || abi,
-      };
-      saveContractConfigObject(configObj);
-
-      // 这里可以选择是否再次导入 ABI
-      await importAbiToNodeManager(contractName, existingAddress, abi);
-
-      return {
-        reused: true,
-        contractName,
-        contractAddress: existingAddress,
-      };
-    }
-
-    console.log(
-      `[${contractName}] 配置中有地址 ${existingAddress}，但链上未找到代码，将重新部署。`
-    );
-  }
-
-  // 2. 走 /contract/deploy 部署（本地私钥）
+  // 1. 走 /contract/deploy 部署（本地私钥）
   const url = `${WEB_BASE_URL}/contract/deploy`;
 
   const payload = {
@@ -260,7 +197,6 @@ async function deployContractIfNeeded(contractName, constructorParams = []) {
   saveContractConfigObject(configObj);
 
   return {
-    reused: false,
     contractName,
     contractAddress: addr,
   };
@@ -291,7 +227,7 @@ async function deployAllContracts() {
   const results = [];
   for (const name of contractNames) {
     // 此处默认构造函数无参数，如有参数可自己改成一个映射表
-    const r = await deployContractIfNeeded(name, []);
+    const r = await deploySingleContract(name, []);
     results.push(r);
   }
 
@@ -300,7 +236,6 @@ async function deployAllContracts() {
     results.map((r) => ({
       contractName: r.contractName,
       contractAddress: r.contractAddress,
-      reused: r.reused,
     }))
   );
 
@@ -346,17 +281,11 @@ async function callContract(contractName, funcName, funcParam = []) {
   return resp.data;
 }
 
-/* ------------------------------------------------------------------
- * 兼容老接口：Demo 专用部署（内部其实复用通用逻辑）
- * ------------------------------------------------------------------ */
 
-async function deployDemoContract() {
-  return deployContractIfNeeded("Demo", []);
-}
+
 
 export {
   callContract,
-  deployDemoContract,   // 兼容你之前的用法
   deployAllContracts,   // 新增：一次性部署 build_contracts 中所有合约
-  deployContractIfNeeded, // 新增：单个合约的按需部署
+  deploySingleContract, // 新增：单个合约的按需部署
 };

@@ -2,7 +2,7 @@
 export const contractConfig = {
   "Demo": {
     "contractName": "Demo",
-    "contractAddress": "0x33e56a083e135936c1144960a708c43a661706c0",
+    "contractAddress": "0xc860ab27901b3c2b810165a6096c64d88763617f",
     "contractPath": "/",
     "contractAbi": [
       {
@@ -60,7 +60,7 @@ export const contractConfig = {
   },
   "HelloWorld": {
     "contractName": "HelloWorld",
-    "contractAddress": "0x19a6434154de51c7a7406edf312f01527441b561",
+    "contractAddress": "0x2b5dcbae97f9d9178e8b051b08c9fb4089bae71b",
     "contractPath": "/",
     "contractAbi": [
       {
