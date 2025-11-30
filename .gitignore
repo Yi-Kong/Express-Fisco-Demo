@@ -1,2 +1,6 @@
 node_modules
 .env
+./build_contracts
+.DS_Store
+contractConfig.json
+contractConfig.js
