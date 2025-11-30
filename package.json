@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "node index.js",
-    "compile:demo": "node scripts/compileDemo.js"
+    "compile_contracts": "node scripts/compileDemo.js"
   },
   "devDependencies": {
     "@types/bun": "latest"
