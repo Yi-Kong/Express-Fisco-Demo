@@ -60,7 +60,7 @@ app.post('/api/call_contract', async (req, res) => {
 
 
 
-app.post('/api/contracts/deploy-demo', async (req, res) => {
+app.post('/api/contracts/deploy-all', async (req, res) => {
   try {
     const result = await deployAllContracts()
     res.json({ ok: true, result });
@@ -76,7 +76,7 @@ app.post('/api/contracts/deploy-demo', async (req, res) => {
 
 
 // 部署指定名字的合约
-app.post('/api/contracts/deploy-one', async (req, res) => {
+app.post('/api/contracts/deploy-single', async (req, res) => {
   try {
     const { contractName, constructorParams = [] } = req.body;
 

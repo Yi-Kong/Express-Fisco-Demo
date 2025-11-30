@@ -14,34 +14,24 @@ const WEBASE_ACCOUNT = process.env.WEBASE_ACCOUNT; // Node-Manager 中的账号�
 
 const BUILD_DIR = path.join(process.cwd(), "build_contracts");
 
-// 用 JSON 存实际配置，JS 文件是自动生成的壳
-const CONTRACT_CONFIG_JSON = path.join(process.cwd(), "contractConfig.json");
+// 现在只用 JS 文件作为配置，不再使用 JSON
 const CONTRACT_CONFIG_JS = path.join(process.cwd(), "contractConfig.js");
 
 /* ------------------------------------------------------------------
- * 工具函数：加载 / 保存 contractConfig
+ * 工具函数：加载 / 保存 contractConfig（只操作 JS 文件）
  * ------------------------------------------------------------------ */
 
-// 读取 JSON 配置（不存在则返回 {}）
-function loadContractConfigObject() {
-  if (!fs.existsSync(CONTRACT_CONFIG_JSON)) {
-    return {};
+// 从已 import 的 contractConfig 拿配置对象，兜底 {}
+function getContractConfigObject() {
+  if (contractConfig && typeof contractConfig === "object") {
+    // 浅拷贝一份，避免直接改 import 进来的对象引用
+    return { ...contractConfig };
   }
-  try {
-    const raw = fs.readFileSync(CONTRACT_CONFIG_JSON, "utf8");
-    return JSON.parse(raw);
-  } catch (e) {
-    console.error("读取 contractConfig.json 失败，将从空对象开始：", e);
-    return {};
-  }
+  return {};
 }
 
-// 把配置写入 JSON + 生成 JS 导出文件
-function saveContractConfigObject(configObj) {
-  // 1. 写 JSON
-  fs.writeFileSync(CONTRACT_CONFIG_JSON, JSON.stringify(configObj, null, 2));
-
-  // 2. 生成 JS（供其它文件 import { contractConfig } 使用）
+// 把配置写入 JS 导出文件（供其它文件 import { contractConfig } 使用）
+function saveContractConfig(configObj) {
   const jsContent =
     `// 本文件由 fiscoClient.js 自动生成，请勿手动修改\n` +
     `export const contractConfig = ${JSON.stringify(configObj, null, 2)};\n`;
@@ -163,8 +153,8 @@ async function deploySingleContract(contractName, constructorParams = []) {
 
   const { abi, bytecode, runtimeBytecode } = loadCompiledContract(contractName);
 
-  // 读取当前配置
-  const configObj = loadContractConfigObject();
+  // 读取当前配置（来源于 contractConfig.js，而不是 JSON）
+  const configObj = getContractConfigObject();
 
   // 1. 走 /contract/deploy 部署（本地私钥）
   const url = `${WEB_BASE_URL}/contract/deploy`;
@@ -197,7 +187,7 @@ async function deploySingleContract(contractName, constructorParams = []) {
   // 3. 导入 ABI 到 Node-Manager（可选）
   await importAbiToNodeManager(contractName, addr, abi);
 
-  // 4. 更新并写回 contractConfig
+  // 4. 更新并写回 contractConfig（只写 JS）
   const newEntry = {
     contractName,
     contractAddress: addr,
@@ -211,7 +201,7 @@ async function deploySingleContract(contractName, constructorParams = []) {
   const newList = [...oldList, newEntry];
 
   configObj[contractName] = newList;
-  saveContractConfigObject(configObj);
+  saveContractConfig(configObj);
 
   return {
     contractName,
