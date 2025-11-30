@@ -49,6 +49,18 @@ function saveContractConfigObject(configObj) {
   fs.writeFileSync(CONTRACT_CONFIG_JS, jsContent);
 }
 
+/**
+ * 兼容：老版本 config 里某个 key 可能是单个对象，这里统一转成数组
+ *  - undefined/null      -> []
+ *  - Array               -> 原样返回
+ *  - Object (单个配置)    -> [Object]
+ */
+function normalizeContractList(entryOrList) {
+  if (!entryOrList) return [];
+  if (Array.isArray(entryOrList)) return entryOrList;
+  return [entryOrList];
+}
+
 /* ------------------------------------------------------------------
  * 工具函数：读取编译产物（按合约名从 build_contracts/{contractName}/ 下读）
  * ------------------------------------------------------------------ */
@@ -143,7 +155,7 @@ function extractAddressFromDeployResp(data) {
 }
 
 /* ------------------------------------------------------------------
- * 单合约部署：如果链上已有则跳过，否则部署
+ * 单合约部署：记录所有同名合约
  * ------------------------------------------------------------------ */
 
 async function deploySingleContract(contractName, constructorParams = []) {
@@ -153,7 +165,6 @@ async function deploySingleContract(contractName, constructorParams = []) {
 
   // 读取当前配置
   const configObj = loadContractConfigObject();
-
 
   // 1. 走 /contract/deploy 部署（本地私钥）
   const url = `${WEB_BASE_URL}/contract/deploy`;
@@ -166,7 +177,6 @@ async function deploySingleContract(contractName, constructorParams = []) {
     bytecodeBin: bytecode,
     contractBin: runtimeBytecode,
     funcParam: constructorParams, // 所有构造参数均使用字符串
-    // 其余字段按文档是必填，但旧版本里可以不传，你之前也是这么用的
   };
 
   console.log(`[${contractName}] 部署 payload =`, payload);
@@ -188,12 +198,19 @@ async function deploySingleContract(contractName, constructorParams = []) {
   await importAbiToNodeManager(contractName, addr, abi);
 
   // 4. 更新并写回 contractConfig
-  configObj[contractName] = {
+  const newEntry = {
     contractName,
     contractAddress: addr,
     contractPath: "/",
     contractAbi: abi,
+    deployedAt: Date.now(), // 记录部署时间（可选）
   };
+
+  const oldList = normalizeContractList(configObj[contractName]);
+  // 在原有基础上插入：这里选择 push 到末尾，保证最后一个是最新部署
+  const newList = [...oldList, newEntry];
+
+  configObj[contractName] = newList;
   saveContractConfigObject(configObj);
 
   return {
@@ -246,13 +263,41 @@ async function deployAllContracts() {
  * 合约调用封装：通过 contractConfig + /trans/handle
  * ------------------------------------------------------------------ */
 
-// funcName: 合约函数名，如 "set" / "get"
-// funcParam: 参数数组（字符串数组），如 ["333"] 或 []
-async function callContract(contractName, funcName, funcParam = []) {
-  const c = contractConfig[contractName];
+/**
+ * funcName: 合约函数名，如 "set" / "get"
+ * funcParam: 参数数组（字符串数组），如 ["333"] 或 []
+ * options:
+ *   - contractAddress: 可选，指定要调用的某个地址；
+ *                      不传则默认使用该合约名下最后一个（最新部署）
+ */
+async function callContract(contractName, funcName, funcParam = [], options = {}) {
+  const list = normalizeContractList(contractConfig[contractName]);
 
-  if (!c) {
-    throw new Error(`未知的合约配置名称: ${contractName}，请先部署并写入 contractConfig。`);
+  if (!list || list.length === 0) {
+    throw new Error(
+      `未知的合约配置名称: ${contractName}，请先部署并写入 contractConfig。`
+    );
+  }
+
+  const { contractAddress } = options;
+
+  let c;
+  if (contractAddress) {
+    const addrLower = contractAddress.toLowerCase();
+    c = list.find(
+      (item) =>
+        item &&
+        item.contractAddress &&
+        item.contractAddress.toLowerCase() === addrLower
+    );
+    if (!c) {
+      throw new Error(
+        `在 contractConfig 中未找到合约 ${contractName} 的地址 ${contractAddress}`
+      );
+    }
+  } else {
+    // 未指定地址，默认使用最后一个（最新）
+    c = list[list.length - 1];
   }
 
   const url = `${WEB_BASE_URL}/trans/handle`;
@@ -272,7 +317,10 @@ async function callContract(contractName, funcName, funcParam = []) {
     cnsName: "",
   };
 
-  console.log(`[${contractName}] 调用 ${funcName} payload =`, payload);
+  console.log(
+    `[${contractName}] 调用 ${funcName} (address=${c.contractAddress}) payload =`,
+    payload
+  );
 
   const resp = await axios.post(url, payload, {
     headers: { "Content-Type": "application/json" },
@@ -281,11 +329,8 @@ async function callContract(contractName, funcName, funcParam = []) {
   return resp.data;
 }
 
-
-
-
 export {
   callContract,
-  deployAllContracts,   // 新增：一次性部署 build_contracts 中所有合约
-  deploySingleContract, // 新增：单个合约的按需部署
+  deployAllContracts,   // 一次性部署 build_contracts 中所有合约
+  deploySingleContract, // 单个合约的部署（并记录到数组）
 };

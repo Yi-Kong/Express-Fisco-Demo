@@ -39,30 +39,47 @@ app.get('/api/hello/get', async (req, res) => {
   }
 });
 
+// GET /api/demo/get?contractAddress=0x123...
 app.get('/api/demo/get', async (req, res) => {
   try {
-    // 没有参数就传空数组
-    const result = await callContract("Demo",'get', []);
+    // 从 query 里取合约地址（没有就 undefined）
+    const { contractAddress } = req.query;
 
-    // 对于 constant(view) 函数，WeBASE 直接返回合约返回值，比如 {"Hi,Welcome!"} 这样的对象  [oai_citation:7‡WeBASE 文档](https://webasedoc.readthedocs.io/zh-cn/lab/docs/WeBASE-Front/interface.html)
+    // 这里可以做一点点校验（可选）
+    if (contractAddress && !/^0x[0-9a-fA-F]{40}$/.test(contractAddress)) {
+      return res.status(400).json({ error: '无效的合约地址格式' });
+    }
+
+    const options = {};
+    if (contractAddress) {
+      options.contractAddress = contractAddress;
+    }
+
+    // 没有参数就传空数组
+    const result = await callContract("Demo", "get", [], options);
+
+    // 对于 constant(view) 函数，WeBASE 直接返回合约返回值，比如 {"Hi,Welcome!"} 这样的对象
     res.json({ ok: true, result });
   } catch (err) {
     console.error('get 失败:', err.response?.data || err.message);
-    res.status(500).json({ error: '链上查询失败', detail: err.response?.data || err.message });
+    res
+      .status(500)
+      .json({ error: '链上查询失败', detail: err.response?.data || err.message });
   }
 });
+
 
 
 // 写数据：调用 HelloWorld.set(string)
 app.post('/api/demo/set', async (req, res) => {
   try {
-    const { value } = req.body;
+    const { value,options } = req.body;
     if (typeof value !== 'number') {
       return res.status(400).json({ error: 'value 必须是数字' });
     }
 
     // funcParam 是 String 数组
-    const result = await callContract('Demo','set', [value]);
+    const result = await callContract('Demo','set', [value],options);
 
     // 对于非 constant 函数，返回的是交易收据（blockHash、txHash 等）
     res.json({ ok: true, result });
