@@ -3,7 +3,6 @@ import fs from "fs";
 import path from "path";
 import axios from "axios";
 import dotenv from "dotenv";
-import { contractConfig } from "./contractConfig.js";
 dotenv.config();
 
 const WEB_BASE_URL = process.env.WEB_BASE_URL; // http://127.0.0.1:5002/WeBASE-Front
@@ -21,11 +20,46 @@ const CONTRACT_CONFIG_JS = path.join(process.cwd(), "contractConfig.js");
  * 工具函数：加载 / 保存 contractConfig（只操作 JS 文件）
  * ------------------------------------------------------------------ */
 
-// 从已 import 的 contractConfig 拿配置对象，兜底 {}
+/**
+ * 真正从磁盘上的 contractConfig.js 读配置
+ * 文件格式形如：
+ *   // ...
+ *   export const contractConfig = { ... };
+ */
+function loadContractConfigFromFile() {
+  if (!fs.existsSync(CONTRACT_CONFIG_JS)) {
+    return {};
+  }
+
+  const content = fs.readFileSync(CONTRACT_CONFIG_JS, "utf8");
+
+  // 用正则把 `export const contractConfig = ...;` 里的 JSON 部分抠出来
+  const match = content.match(
+    /export\s+const\s+contractConfig\s*=\s*([\s\S]*);/
+  );
+  if (!match || !match[1]) {
+    // 找不到就当没有配置
+    return {};
+  }
+
+  const jsonStr = match[1].trim();
+
+  try {
+    // 写入时用的是 JSON.stringify，所以这里可以直接 JSON.parse
+    return JSON.parse(jsonStr);
+  } catch (e) {
+    console.error("解析 contractConfig.js 失败:", e);
+    return {};
+  }
+}
+
+// 从文件中拿配置对象，兜底 {}
 function getContractConfigObject() {
-  if (contractConfig && typeof contractConfig === "object") {
-    // 浅拷贝一份，避免直接改 import 进来的对象引用
-    return { ...contractConfig };
+  // 每次都从磁盘读最新配置
+  const cfg = loadContractConfigFromFile();
+  if (cfg && typeof cfg === "object") {
+    // 浅拷贝一份，避免直接改原对象
+    return { ...cfg };
   }
   return {};
 }
@@ -125,7 +159,10 @@ function extractAddressFromDeployResp(data) {
 
   // 1) 新版：{ code:0, message:'', data:{ contractAddress:'0x...' } }
   if (data.data && typeof data.data === "object") {
-    if (data.data.contractAddress && typeof data.data.contractAddress === "string") {
+    if (
+      data.data.contractAddress &&
+      typeof data.data.contractAddress === "string"
+    ) {
       return data.data.contractAddress;
     }
     // 某些版本是直接 data 为地址字符串
@@ -261,7 +298,9 @@ async function deployAllContracts() {
  *                      不传则默认使用该合约名下最后一个（最新部署）
  */
 async function callContract(contractName, funcName, funcParam = [], options = {}) {
-  const list = normalizeContractList(contractConfig[contractName]);
+  // 每次调用都从文件读最新的 contractConfig
+  const configObj = getContractConfigObject();
+  const list = normalizeContractList(configObj[contractName]);
 
   if (!list || list.length === 0) {
     throw new Error(
