@@ -1,34 +1,21 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-contract Hello {
-    string private greeting;
-    address public owner;
+contract HelloWorld {
+    string public message;
 
-    event GreetingChanged(string indexed oldGreeting, string indexed newGreeting);
-    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
-
-    constructor(string memory _greeting) {
-        owner = msg.sender;
-        greeting = _greeting;
+    // 构造函数，在部署合约时执行一次
+    constructor() {
+        message = "Hello, World!";
     }
 
-    function say() external view returns (string memory) {
-        return greeting;
+    // 读取当前消息（因为 message 声明为 public，其实会自动生成同名 getter）
+    function get() public view returns (string memory) {
+        return message;
     }
 
-    function setGreeting(string memory _greeting) external {
-        require(msg.sender == owner, "Hello: caller is not the owner");
-        string memory old = greeting;
-        greeting = _greeting;
-        emit GreetingChanged(old, _greeting);
-    }
-
-    function transferOwnership(address newOwner) external {
-        require(msg.sender == owner, "Hello: caller is not the owner");
-        require(newOwner != address(0), "Hello: new owner is the zero address");
-        address previous = owner;
-        owner = newOwner;
-        emit OwnershipTransferred(previous, newOwner);
+    // 修改消息
+    function set(string memory _newMessage) public {
+        message = _newMessage;
     }
 }

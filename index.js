@@ -1,5 +1,5 @@
 // index.js
-import { callContract ,deployDemoContract} from './fiscoClient.js';
+import { callContract ,deployAllContracts} from './fiscoClient.js';
 import express from 'express';
 import bodyParser from 'body-parser';
 
@@ -75,7 +75,7 @@ app.post('/api/demo/set', async (req, res) => {
 
 app.post('/api/contracts/deploy-demo', async (req, res) => {
   try {
-    const result = await deployDemoContract();
+    const result = await deployAllContracts()
     res.json({ ok: true, result });
   } catch (err) {
     console.error('部署 Demo 合约失败:', err.response?.data || err.message);
