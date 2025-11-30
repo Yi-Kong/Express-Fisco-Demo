@@ -9,21 +9,54 @@ dotenv.config();
 const WEB_BASE_URL = process.env.WEB_BASE_URL; // http://127.0.0.1:5002/WeBASE-Front
 const GROUP_ID = process.env.GROUP_ID; // "1"
 const USER_ADDRESS = process.env.USER_ADDRESS; // 0x开头
-
+const NODE_MGR_URL = process.env.NODE_MGR_URL;
+const WEBASE_ACCOUNT = process.env.WEBASE_ACCOUNT;
 
 function loadCompiledDemo() {
-  const buildDir = path.join(process.cwd(), 'build_contracts');
-  const abiPath = path.join(buildDir, 'Demo.abi.json');
-  const bytecodePath = path.join(buildDir, 'Demo.bytecode.txt');
-  const runtimePath = path.join(buildDir, 'Demo.runtimeBytecode.txt');
+  const buildDir = path.join(process.cwd(), "build_contracts");
 
-  const abi = JSON.parse(fs.readFileSync(abiPath, 'utf8'));
-  const bytecode = fs.readFileSync(bytecodePath, 'utf8').trim();
-  const runtimeBytecode = fs.readFileSync(runtimePath, 'utf8').trim();
+  const abiPath = path.join(buildDir, "Demo.abi.json");
+  const bytecodePath = path.join(buildDir, "Demo.bytecode.txt");
+  const runtimePath = path.join(buildDir, "Demo.runtimeBytecode.txt");
+
+  const abi = JSON.parse(fs.readFileSync(abiPath, "utf8"));
+  const bytecode = fs.readFileSync(bytecodePath, "utf8").trim();
+  const runtimeBytecode = fs.readFileSync(runtimePath, "utf8").trim();
 
   return { abi, bytecode, runtimeBytecode };
 }
 
+async function importDemoAbiToNodeManager(contractAddress) {
+  const { abi } = loadCompiledDemo();
+
+  // const abiId = await getContractIdFromNodeMgr(contractAddress);
+  // console.log("Found contractId (abiId) =", abiId);
+  const url = `${NODE_MGR_URL}/abi`;
+
+  const payload = {
+    groupId: GROUP_ID,            // 建议 env 里写 group0
+    contractAddress,              // 部署得到的地址
+    contractName: "Demo",
+    contractAbi: abi,             // 这里字段名是 contractAbi
+    account: WEBASE_ACCOUNT,      // 比如 "admin"
+    // abiId 可以不传，3.x 后端会自己分配；如果报错再显式给 0
+    // abiId: 1,
+  };
+
+  console.log("import ABI payload =", payload);
+
+  const resp = await axios.post(url, payload, {
+    headers: { "Content-Type": "application/json" },
+  });
+
+  console.log("Node-Manager /abi resp.data =", resp.data);
+
+  if (resp.data.code !== 0) {
+    throw new Error(
+      `Import ABI failed: code=${resp.data.code}, message=${resp.data.message}`
+    );
+  }
+}
 
 // 通用的合约调用封装，通过 /trans/handle 接口
 // funcName: 合约函数名，如 "set" / "get"
@@ -57,34 +90,47 @@ async function callContract(contactName, funcName, funcParam = []) {
   return resp.data;
 }
 
-
 async function deployDemoContract() {
   const { abi, bytecode, runtimeBytecode } = loadCompiledDemo();
 
   const url = `${WEB_BASE_URL}/contract/deploy`;
 
   const payload = {
-    groupId: GROUP_ID,              // group0
-    user: USER_ADDRESS,             // WeBASE 本地私钥用户地址
-    contractName: 'Demo',
-    abiInfo: abi,                   // 就是 ABI JSON 数组
-    bytecodeBin: bytecode,          // 合约 bytecode
-    contractBin: runtimeBytecode,   // runtime-bytecode
-    funcParam: [],                  // Demo 构造函数没有参数
-    // 下面这些字段文档里列为可选/扩展，可先不填，如果接口报缺少再按错误信息补
+    groupId: GROUP_ID,
+    user: USER_ADDRESS, // 你在 WeBASE 的用户地址
+    contractName: "Demo",
+    abiInfo: abi,
+    bytecodeBin: bytecode,
+    contractBin: runtimeBytecode,
+    funcParam: [], // Demo 构造函数没有参数
     // contractId: 0,
-    // contractPath: "/",
-    // contractSource: "from-express",
-    // signUserId: "",              // 如果你用了 WeBASE-Sign 再加
+    // contractPath: '/',
+    // contractSource: 'from-express',
+    // signUserId: '',              // 用 WeBASE-Sign 再补
     // useAes: false,
-    // version: ""
+    // version: ''
   };
 
   const resp = await axios.post(url, payload, {
-    headers: { 'Content-Type': 'application/json' },
+    headers: { "Content-Type": "application/json" },
   });
 
-  return resp.data;   // 文档示例直接返回合约地址
+  console.log("resp:", resp.data);
+  // 这里取出 WeBASE 返回的合约地址（按你的实际返回结构调整）
+  // if (resp.data.code !== 0) {
+  //   throw new Error(
+  //     `Deploy failed: code=${resp.data.code}, message=${resp.data.message}`
+  //   );
+  // }
+
+  // const contractAddress = resp.data.data.contractAddress;
+  // 如果你中间还有一层封装，只要保证最后拿到地址即可
+
+  // ★ 新增：把 ABI + 地址导入到 WeBASE-Node-Manager
+  await importDemoAbiToNodeManager(resp.data);
+
+  // 返回地址给上层使用
+  return resp.data;
 }
 
 export { callContract, deployDemoContract };

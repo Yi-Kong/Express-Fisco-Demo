@@ -39,6 +39,19 @@ app.get('/api/hello/get', async (req, res) => {
   }
 });
 
+app.get('/api/demo/get', async (req, res) => {
+  try {
+    // 没有参数就传空数组
+    const result = await callContract("Demo",'get', []);
+
+    // 对于 constant(view) 函数，WeBASE 直接返回合约返回值，比如 {"Hi,Welcome!"} 这样的对象  [oai_citation:7‡WeBASE 文档](https://webasedoc.readthedocs.io/zh-cn/lab/docs/WeBASE-Front/interface.html)
+    res.json({ ok: true, result });
+  } catch (err) {
+    console.error('get 失败:', err.response?.data || err.message);
+    res.status(500).json({ error: '链上查询失败', detail: err.response?.data || err.message });
+  }
+});
+
 app.post('/api/contracts/deploy-demo', async (req, res) => {
   try {
     const result = await deployDemoContract();
